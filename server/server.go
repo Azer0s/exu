@@ -2,8 +2,9 @@ package server
 
 import (
 	"encoding/binary"
-	"exu/vswitch"
+	"exu"
 	log "github.com/sirupsen/logrus"
+	"github.com/songgao/packets/ethernet"
 	"net"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 var ipRanges = []string{
 	"10.0.0.1/24",
-	"192.168.0.1/24",
 }
 var usedIPs = make(map[string]bool)
 var usedIPsMu = sync.Mutex{}
@@ -39,16 +39,12 @@ func New(mode Mode) Server {
 		tcp:  tcp,
 		mode: mode,
 	}
-
-	switch mode {
-	case ModeVSwitch:
-		srv.handler = vswitch.New()
-	}
-
 	return srv
 }
 
 func (s Server) Run() {
+	sw1 := exu.NewEthernetSwitch("sw1", 10)
+
 	for {
 		conn, err := s.tcp.Accept()
 		log.WithField("remote_addr", conn.RemoteAddr()).Info("accepted new connection")
@@ -84,6 +80,15 @@ func (s Server) Run() {
 			panic(err)
 		}
 		port := binary.LittleEndian.Uint16(portBytes)
+
+		macBytes := make([]byte, 6)
+		_, err = conn.Read(macBytes)
+		if err != nil {
+			log.WithField("error", err).
+				WithField("remote_addr", conn.RemoteAddr()).
+				Error("failed to read mac address")
+			continue
+		}
 
 		log.WithField("remote_addr", conn.RemoteAddr()).
 			WithField("port", port).
@@ -146,9 +151,70 @@ func (s Server) Run() {
 			WithField("ip", first.String()).
 			Debug("sent ip address to client")
 
-		go func(ip net.IP) {
-			s.handler.Handle(rx, tx)
+		go func(ip net.IP, rx, tx net.Conn, mac net.HardwareAddr) {
+			txMu := sync.Mutex{}
+
+			vPort := exu.NewVPort(mac)
+			vPort.SetOnReceive(func(data ethernet.Frame) {
+				txMu.Lock()
+				defer txMu.Unlock()
+
+				_, err := tx.Write(data)
+				if err != nil {
+					log.WithField("error", err).
+						WithField("remote_addr", rx.RemoteAddr()).
+						Error("failed to write data to tx connection")
+				}
+			})
+
+			err := sw1.ConnectToFirstAvailablePort(vPort)
+			if err != nil {
+				return
+			}
+
+			errChan := make(chan error)
+
+			for {
+				select {
+				case err := <-errChan:
+					log.WithField("error", err).
+						WithField("remote_addr", rx.RemoteAddr()).
+						Error("failed to write data to tx connection")
+					return
+
+				default:
+					break
+				}
+
+				buff := make([]byte, 4096)
+				n, err := rx.Read(buff)
+				if err != nil {
+					log.WithField("error", err).
+						WithField("remote_addr", rx.RemoteAddr()).
+						Error("failed to read from rx connection")
+					break
+				}
+
+				log.WithField("remote_addr", rx.RemoteAddr()).
+					WithField("ip", ip.String()).
+					Trace("received packet from client")
+
+				go func() {
+					err = vPort.Write(buff[:n])
+					if err != nil {
+						select {
+						case errChan <- err:
+							// someone already sent an error, so we can just ignore this,
+							// this is just to make sending the error non-blocking
+							return
+						default:
+							return
+						}
+					}
+				}()
+			}
+
 			usedIPs[ip.String()] = false
-		}(first)
+		}(first, rx, tx, macBytes)
 	}
 }

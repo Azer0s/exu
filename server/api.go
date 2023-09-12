@@ -11,9 +11,8 @@ const (
 )
 
 type Server struct {
-	tcp     net.Listener
-	mode    Mode
-	handler Handler
+	tcp  net.Listener
+	mode Mode
 }
 
 type Handler interface {

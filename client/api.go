@@ -120,10 +120,26 @@ func (c *Client) Run() {
 
 	log.WithField("remote_addr", conn.RemoteAddr().String()).Info("connected to server")
 
+	// get mac address of tap interface
+	cmd := exec.Command("ip", "address", "show", c.ifce.Name())
+	out, err := cmd.Output()
+	if err != nil {
+		log.WithField("error", err).Fatal("failed to get mac address")
+	}
+
+	// mac should be after "link/ether"
+	mac, err := net.ParseMAC(strings.Split(string(out), "link/ether ")[1][:17])
+	if err != nil {
+		log.WithField("error", err).Fatal("failed to parse mac address")
+	}
+
+	log.WithField("mac", mac.String()).Debug("got mac address of tap interface")
+
 	// send initial packet
 	// first byte is the magic hello byte (0x42)
 	// second and third byte is the remote port (2 bytes)
-	_, err = conn.Write([]byte{0x42, portBytes[0], portBytes[1]})
+	// next 6 bytes is the mac address
+	_, err = conn.Write([]byte{0x42, portBytes[0], portBytes[1], mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]})
 	if err != nil {
 		panic(err)
 	}

@@ -16,7 +16,7 @@ func printUsage() {
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.TraceLevel)
 
 	if len(os.Args) < 2 {
 		printUsage()
