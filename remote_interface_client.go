@@ -1,4 +1,4 @@
-package client
+package exu
 
 import (
 	"encoding/binary"
@@ -12,11 +12,12 @@ import (
 	"time"
 )
 
-type Client struct {
+type RemoteInterfaceClient struct {
 	ifce *water.Interface
+	host net.TCPAddr
 }
 
-func New() Client {
+func NewRemoteInterfaceClient(host net.TCPAddr) RemoteInterfaceClient {
 	config := water.Config{
 		DeviceType: water.TAP,
 	}
@@ -52,12 +53,13 @@ func New() Client {
 		log.Fatal(err)
 	}
 
-	return Client{
+	return RemoteInterfaceClient{
 		ifce: ifce,
+		host: host,
 	}
 }
 
-func (c *Client) Run() {
+func (c *RemoteInterfaceClient) Run() {
 	log.Info("starting client")
 
 	portChan := make(chan uint16)
@@ -113,7 +115,7 @@ func (c *Client) Run() {
 	binary.LittleEndian.PutUint16(portBytes, port)
 
 	// connect to server
-	conn, err := net.Dial("tcp", ":6885")
+	conn, err := net.Dial("tcp", c.host.String())
 	if err != nil {
 		panic(err)
 	}

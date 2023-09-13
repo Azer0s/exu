@@ -21,7 +21,9 @@ func (v *VPort) Write(data ethernet.Frame) error {
 		return errors.New("vPort is not connected")
 	}
 
-	go v.connectedTo.onReceive(data)
+	WithWaitGroup(func() {
+		v.connectedTo.onReceive(data)
+	})
 	return nil
 }
 

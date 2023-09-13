@@ -18,7 +18,7 @@ func NewEthernetSwitch(name string, numberOfPorts int) *EthernetSwitch {
 		macAddressMapMu: sync.RWMutex{},
 	}
 
-	ethernetSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, ethernetSwitch.onReceive, ethernetSwitch.onConnect, ethernetSwitch.onDisconnect)
+	ethernetSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, ethernetSwitch.onReceive, func(*VPort) {}, ethernetSwitch.onDisconnect)
 	return ethernetSwitch
 }
 
@@ -36,6 +36,11 @@ func (s *EthernetSwitch) flood(srcPort *VPort, data ethernet.Frame) {
 func (s *EthernetSwitch) onReceive(srcPort *VPort, data ethernet.Frame) {
 	srcString := data.Source().String()
 	dstString := data.Destination().String()
+
+	log.WithField("src", srcString).
+		WithField("dst", dstString).
+		WithField("name", s.name).
+		Trace("received frame")
 
 	func() {
 		s.macAddressMapMu.Lock()
@@ -69,10 +74,6 @@ func (s *EthernetSwitch) onReceive(srcPort *VPort, data ethernet.Frame) {
 	}
 
 	s.flood(srcPort, data)
-}
-
-func (s *EthernetSwitch) onConnect(*VPort) {
-	return
 }
 
 func (s *EthernetSwitch) onDisconnect(port *VPort) {

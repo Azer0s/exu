@@ -2,6 +2,7 @@ package exu
 
 import (
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/songgao/packets/ethernet"
 	"math/rand"
 	"net"
@@ -9,12 +10,12 @@ import (
 )
 
 type EthernetDevice struct {
-	ports        []*VPort
-	name         string
-	portsMu      sync.RWMutex
-	onReceive    func(srcPort *VPort, data ethernet.Frame)
-	onConnect    func(port *VPort)
-	onDisconnect func(port *VPort)
+	ports          []*VPort
+	name           string
+	portsMu        sync.RWMutex
+	onReceiveFn    func(srcPort *VPort, data ethernet.Frame)
+	onConnectFn    func(port *VPort)
+	onDisconnectFn func(port *VPort)
 }
 
 type EthernetReceiver interface {
@@ -24,12 +25,12 @@ type EthernetReceiver interface {
 func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *VPort, data ethernet.Frame), onConnect func(port *VPort), onDisconnect func(port *VPort)) *EthernetDevice {
 	dev := new(EthernetDevice)
 	*dev = EthernetDevice{
-		name:         name,
-		ports:        make([]*VPort, numberOfPorts),
-		portsMu:      sync.RWMutex{},
-		onReceive:    onReceive,
-		onConnect:    onConnect,
-		onDisconnect: onDisconnect,
+		name:           name,
+		ports:          make([]*VPort, numberOfPorts),
+		portsMu:        sync.RWMutex{},
+		onReceiveFn:    onReceive,
+		onConnectFn:    onConnect,
+		onDisconnectFn: onDisconnect,
 	}
 
 	for i := 0; i < numberOfPorts; i++ {
@@ -45,7 +46,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 		dev.ports[i] = NewVPort(mac)
 		func(i int) {
 			dev.ports[i].SetOnReceive(func(data ethernet.Frame) {
-				dev.onReceive(dev.ports[i], data)
+				dev.onReceiveFn(dev.ports[i], data)
 			})
 		}(i)
 	}
@@ -90,9 +91,13 @@ func (e *EthernetDevice) GetFirstFreePort() *VPort {
 }
 
 func (e *EthernetDevice) connectPorts(portOnMachine int, target *VPort) {
+	log.WithField("name", e.name).
+		WithField("port", target.mac.String()).
+		Info("connected port")
+
 	e.ports[portOnMachine].connectedTo = target
 	target.connectedTo = e.ports[portOnMachine]
-	e.onConnect(e.ports[portOnMachine])
+	e.onConnectFn(e.ports[portOnMachine])
 }
 
 func (e *EthernetDevice) ConnectToFirstAvailablePort(target *VPort) error {
@@ -110,6 +115,10 @@ func (e *EthernetDevice) ConnectToFirstAvailablePort(target *VPort) error {
 }
 
 func (e *EthernetDevice) DisconnectPort(target *VPort) {
+	log.WithField("name", e.name).
+		WithField("port", target.mac.String()).
+		Info("disconnecting port")
+
 	e.portsMu.Lock()
 	defer e.portsMu.Unlock()
 
@@ -117,7 +126,7 @@ func (e *EthernetDevice) DisconnectPort(target *VPort) {
 		if port.connectedTo == target {
 			port.connectedTo = nil
 			port.onReceive = nil
-			e.onDisconnect(port)
+			e.onDisconnectFn(port)
 			break
 		}
 	}

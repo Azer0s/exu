@@ -9,7 +9,6 @@ import (
 	"net"
 	"regexp"
 	"testing"
-	"time"
 )
 
 func TestEthernetSwitchLearnMac(t *testing.T) {
@@ -62,7 +61,7 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 
 	_ = p1.Write(frame)
 
-	<-time.After(5 * time.Second)
+	exu.AllSettled()
 
 	assert.Contains(t, buff.String(), "received data on p2")
 	assert.Contains(t, buff.String(), "received data on p1")
