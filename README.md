@@ -11,11 +11,12 @@ disconnectFn := func(p *exu.VPort) {
     sw1.DisconnectPort(p)
 }
 
-r1, _ := exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), disconnectFn)
-r2, _ := exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), disconnectFn)
+connectFn := func(port *exu.VPort) {
+    _ = sw1.ConnectToFirstAvailablePort(port)
+}
 
-_ = sw1.ConnectToFirstAvailablePort(r1)
-_ = sw1.ConnectToFirstAvailablePort(r2)
+_, _ = exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), connectFn, disconnectFn)
+_, _ = exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), connectFn, disconnectFn)
 
 select {}
 ```
@@ -30,7 +31,8 @@ go run exu/client/main.go localhost 6554
 ### On PC2
 
 ```bash
-go run exu/client/main.go localhost 6555
+export pc1_ip="address of PC1"
+go run exu/client/main.go $pc1_ip 6555
 ```
 
 Now you can access `http://10.0.0.1:8000` from PC2.

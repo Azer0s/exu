@@ -6,6 +6,8 @@ import (
 	"net"
 )
 
+var VPortNotConnectedError = errors.New("vPort is not connected")
+
 type VPort struct {
 	mac         net.HardwareAddr
 	connectedTo *VPort
@@ -18,7 +20,7 @@ func (v *VPort) SetOnReceive(onReceive func(data ethernet.Frame)) {
 
 func (v *VPort) Write(data ethernet.Frame) error {
 	if v.connectedTo == nil {
-		return errors.New("vPort is not connected")
+		return VPortNotConnectedError
 	}
 
 	WithWaitGroup(func() {

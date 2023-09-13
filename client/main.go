@@ -14,12 +14,12 @@ func main() {
 		panic(err)
 	}
 
-	tcpAddr := net.TCPAddr{
+	udpAddr := net.UDPAddr{
 		IP:   net.ParseIP(host),
 		Port: port,
 	}
 
 	// create a new remote interface client
-	client := exu.NewRemoteInterfaceClient(tcpAddr)
+	client := exu.NewRemoteInterfaceClient(udpAddr)
 	client.Run()
 }

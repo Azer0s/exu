@@ -14,10 +14,10 @@ import (
 
 type RemoteInterfaceClient struct {
 	ifce *water.Interface
-	host net.TCPAddr
+	host net.UDPAddr
 }
 
-func NewRemoteInterfaceClient(host net.TCPAddr) RemoteInterfaceClient {
+func NewRemoteInterfaceClient(host net.UDPAddr) RemoteInterfaceClient {
 	config := water.Config{
 		DeviceType: water.TAP,
 	}
@@ -66,35 +66,31 @@ func (c *RemoteInterfaceClient) Run() {
 	ipChan := make(chan uint32)
 
 	go func() {
-		// run tcp server on random port
-		tcp, err := net.Listen("tcp", ":0")
+		// run udp server on random port
+		srv, err := net.ListenUDP("udp", &net.UDPAddr{
+			Port: 0,
+		})
 		if err != nil {
 			panic(err)
 		}
 
-		portChan <- uint16(tcp.Addr().(*net.TCPAddr).Port)
-
-		// accept connection
-		conn, err := tcp.Accept()
-		if err != nil {
-			panic(err)
-		}
-
-		log.WithField("remote_addr", conn.RemoteAddr().String()).Info("remote connected to rx port")
+		portChan <- uint16(srv.LocalAddr().(*net.UDPAddr).Port)
 
 		// read ip address assigned to us
 		ipBytes := make([]byte, 4)
-		_, err = conn.Read(ipBytes)
+		_, err = srv.Read(ipBytes)
 		if err != nil {
 			panic(err)
 		}
 		ip := binary.LittleEndian.Uint32(ipBytes)
 		ipChan <- ip
 
+		log.WithField("ip", net.IP(ipBytes).String()).Info("received initial packet")
+
 		// forward to tap interface
 		buff := make([]byte, 4096)
 		for {
-			n, err := conn.Read(buff)
+			n, err := srv.Read(buff)
 			if err != nil {
 				panic(err)
 			}
@@ -115,7 +111,7 @@ func (c *RemoteInterfaceClient) Run() {
 	binary.LittleEndian.PutUint16(portBytes, port)
 
 	// connect to server
-	conn, err := net.Dial("tcp", c.host.String())
+	conn, err := net.Dial("udp", c.host.String())
 	if err != nil {
 		panic(err)
 	}
