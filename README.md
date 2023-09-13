@@ -15,8 +15,8 @@ connectFn := func(port *exu.VPort) {
     _ = sw1.ConnectToFirstAvailablePort(port)
 }
 
-_, _ = exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), connectFn, disconnectFn)
-_, _ = exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), connectFn, disconnectFn)
+go exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), connectFn, disconnectFn)
+go exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), connectFn, disconnectFn)
 
 select {}
 ```

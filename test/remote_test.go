@@ -25,7 +25,7 @@ func TestRemoteV_Port(t *testing.T) {
 }
 
 func TestRemoteV_Port2(t *testing.T) {
-	log.SetLevel(log.TraceLevel)
+	log.SetLevel(log.InfoLevel)
 
 	sw1 := exu.NewEthernetSwitch("sw1", 10)
 	disconnectFn := func(p *exu.VPort) {
@@ -36,8 +36,13 @@ func TestRemoteV_Port2(t *testing.T) {
 		_ = sw1.ConnectToFirstAvailablePort(port)
 	}
 
-	_, _ = exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), connectFn, disconnectFn)
-	_, _ = exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), connectFn, disconnectFn)
+	go func() {
+		_, _ = exu.NewRemoteVport(6554, net.ParseIP("10.0.0.1"), connectFn, disconnectFn)
+	}()
+
+	go func() {
+		_, _ = exu.NewRemoteVport(6555, net.ParseIP("10.0.0.2"), connectFn, disconnectFn)
+	}()
 
 	select {}
 }
