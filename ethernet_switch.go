@@ -6,20 +6,51 @@ import (
 	"sync"
 )
 
+type PortMode int
+
+const (
+	Access PortMode = iota
+	Trunk
+)
+
+type PortModeConfig struct {
+	Mode PortMode
+	Vlan uint16
+}
+
 type EthernetSwitch struct {
 	*EthernetDevice
 	macAddressMap   map[string]*VPort
 	macAddressMapMu sync.RWMutex
+	portMode        map[*VPort]PortModeConfig
+	portModeMu      sync.RWMutex
 }
 
 func NewEthernetSwitch(name string, numberOfPorts int) *EthernetSwitch {
 	ethernetSwitch := &EthernetSwitch{
 		macAddressMap:   make(map[string]*VPort),
 		macAddressMapMu: sync.RWMutex{},
+		portMode:        make(map[*VPort]PortModeConfig),
+		portModeMu:      sync.RWMutex{},
 	}
 
 	ethernetSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, ethernetSwitch.onReceive, func(*VPort) {}, ethernetSwitch.onDisconnect)
+
+	for i := 0; i < numberOfPorts; i++ {
+		ethernetSwitch.portMode[ethernetSwitch.ports[i]] = PortModeConfig{
+			Mode: Access,
+			Vlan: 1,
+		}
+	}
+
 	return ethernetSwitch
+}
+
+func (s *EthernetSwitch) SetPortMode(port *VPort, mode PortModeConfig) {
+	s.portModeMu.Lock()
+	defer s.portModeMu.Unlock()
+
+	s.portMode[port] = mode
 }
 
 func (s *EthernetSwitch) flood(srcPort *VPort, data ethernet.Frame) {
@@ -34,6 +65,12 @@ func (s *EthernetSwitch) flood(srcPort *VPort, data ethernet.Frame) {
 }
 
 func (s *EthernetSwitch) onReceive(srcPort *VPort, data ethernet.Frame) {
+	// TODO: handle vlan
+	// Lookup tag of the incoming frame, if it is not the same as the dst port, drop the frame
+	// If the tag is the same, forward the frame to the dst port
+	// If we don't have the mac address in the mac address table, flood the frame to all trunk
+	// ports and all access ports in the same vlan
+
 	srcString := data.Source().String()
 	dstString := data.Destination().String()
 
@@ -77,8 +114,16 @@ func (s *EthernetSwitch) onReceive(srcPort *VPort, data ethernet.Frame) {
 }
 
 func (s *EthernetSwitch) onDisconnect(port *VPort) {
+	s.portModeMu.Lock()
+	defer s.portModeMu.Unlock()
+
 	s.macAddressMapMu.Lock()
 	defer s.macAddressMapMu.Unlock()
+
+	s.portMode[port] = PortModeConfig{
+		Mode: Access,
+		Vlan: 1,
+	}
 
 	for mac, p := range s.macAddressMap {
 		if p == port {
