@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VPort)) (*VPort, error) {
@@ -93,7 +94,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 	vPort := NewVPort(macBytes)
 	done := make(chan bool)
 
-	go func(ip net.IP, rx, tx net.Conn, mac net.HardwareAddr, vPort *VPort) {
+	go func(ip net.IP, rx, tx net.Conn, mac net.HardwareAddr, vPort *VPort, errChan chan error) {
 		txMu := sync.Mutex{}
 
 		defer func() {
@@ -119,27 +120,19 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			}
 		}()
 
-		errChan := make(chan error)
-
 		vPort.SetOnReceive(func(data ethernet.Frame) {
 			txMu.Lock()
 			defer txMu.Unlock()
 
 			_, err := tx.Write(data)
 			if err != nil {
-				log.WithField("error", err).
-					WithField("remote_addr", remoteAddr.String()).
-					Error("failed to write data to tx connection")
-
-				if err != nil {
-					select {
-					case errChan <- err:
-						// someone already sent an error, so we can just ignore this,
-						// this is just to make sending the error non-blocking
-						return
-					default:
-						return
-					}
+				select {
+				case errChan <- err:
+					// someone already sent an error, so we can just ignore this,
+					// this is just to make sending the error non-blocking
+					return
+				default:
+					return
 				}
 			}
 		})
@@ -153,7 +146,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			}
 
 			select {
-			case err := <-errChan:
+			case err = <-errChan:
 				log.WithField("error", err).
 					WithField("remote_addr", remoteAddr.String()).
 					Error("failed to write data to tx connection")
@@ -164,8 +157,16 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			}
 
 			buff := make([]byte, 4096)
+
+			_ = rx.SetReadDeadline(time.Now().Add(1 * time.Second))
 			n, err := rx.Read(buff)
+
 			if err != nil {
+				if _, ok := err.(net.Error); ok {
+					// we timed out, lets try again next loop
+					continue
+				}
+
 				log.WithField("error", err).
 					WithField("remote_addr", remoteAddr.String()).
 					Error("failed to read from rx connection")
@@ -190,7 +191,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 				}
 			}()
 		}
-	}(ip, rx, tx, macBytes, vPort)
+	}(ip, rx, tx, macBytes, vPort, make(chan error, 1))
 
 	<-done
 
