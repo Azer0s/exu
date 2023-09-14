@@ -25,13 +25,13 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 	}
 
 	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01})
-	p1.SetOnReceive(func(data ethernet.Frame) {
+	p1.SetOnReceive(func(data *ethernet.Frame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p1")
 	})
 
 	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02})
-	p2.SetOnReceive(func(data ethernet.Frame) {
+	p2.SetOnReceive(func(data *ethernet.Frame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p2")
 		returnFrame := ethernet.Frame{
@@ -41,7 +41,7 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 			0x48, 0x65, 0x6c, 0x6c, 0x6f,
 		}
 
-		_ = p2.Write(returnFrame)
+		_ = p2.Write(&returnFrame)
 	})
 
 	_ = sw1.ConnectToFirstAvailablePort(p1)
@@ -59,7 +59,7 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 		0x48, 0x65, 0x6c, 0x6c, 0x6f,
 	}
 
-	_ = p1.Write(frame)
+	_ = p1.Write(&frame)
 
 	exu.AllSettled()
 

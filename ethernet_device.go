@@ -13,7 +13,7 @@ type EthernetDevice struct {
 	ports          []*VPort
 	name           string
 	portsMu        sync.RWMutex
-	onReceiveFn    func(srcPort *VPort, data ethernet.Frame)
+	onReceiveFn    func(srcPort *VPort, data *ethernet.Frame)
 	onConnectFn    func(port *VPort)
 	onDisconnectFn func(port *VPort)
 }
@@ -22,7 +22,7 @@ type EthernetReceiver interface {
 	OnReceive(srcPort *VPort, src net.HardwareAddr, dst net.HardwareAddr, data ethernet.Frame)
 }
 
-func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *VPort, data ethernet.Frame), onConnect func(port *VPort), onDisconnect func(port *VPort)) *EthernetDevice {
+func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *VPort, data *ethernet.Frame), onConnect func(port *VPort), onDisconnect func(port *VPort)) *EthernetDevice {
 	dev := new(EthernetDevice)
 	*dev = EthernetDevice{
 		name:           name,
@@ -45,7 +45,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 
 		dev.ports[i] = NewVPort(mac)
 		func(i int) {
-			dev.ports[i].SetOnReceive(func(data ethernet.Frame) {
+			dev.ports[i].SetOnReceive(func(data *ethernet.Frame) {
 				dev.onReceiveFn(dev.ports[i], data)
 			})
 		}(i)
@@ -54,7 +54,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 	return dev
 }
 
-func (e *EthernetDevice) WriteFromPort(port *VPort, data ethernet.Frame) error {
+func (e *EthernetDevice) WriteFromPort(port *VPort, data *ethernet.Frame) error {
 	e.portsMu.RLock()
 	defer e.portsMu.RUnlock()
 
@@ -71,7 +71,7 @@ func (e *EthernetDevice) WriteFromPort(port *VPort, data ethernet.Frame) error {
 	}
 
 	for i := 6; i < 12; i++ {
-		data[i] = port.mac[i-6]
+		(*data)[i] = port.mac[i-6]
 	}
 
 	return port.Write(data)

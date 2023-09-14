@@ -8,7 +8,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -94,15 +93,10 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 	vPort := NewVPort(macBytes)
 	done := make(chan bool)
 
-	go func(ip net.IP, rx, tx net.Conn, mac net.HardwareAddr, vPort *VPort, errChan chan error) {
-		txMu := sync.Mutex{}
-
+	go func(ip net.IP, rx, tx *net.UDPConn, mac net.HardwareAddr, vPort *VPort, errChan chan error) {
 		defer func() {
 			log.WithField("remote_addr", remoteAddr.String()).
 				Info("closing connection")
-
-			txMu.Lock()
-			defer txMu.Unlock()
 
 			onDisconnect(vPort)
 
@@ -120,11 +114,8 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			}
 		}()
 
-		vPort.SetOnReceive(func(data ethernet.Frame) {
-			txMu.Lock()
-			defer txMu.Unlock()
-
-			_, err := tx.Write(data)
+		vPort.SetOnReceive(func(data *ethernet.Frame) {
+			_, err := tx.Write(*data)
 			if err != nil {
 				select {
 				case errChan <- err:
@@ -159,7 +150,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			buff := make([]byte, 4096)
 
 			_ = rx.SetReadDeadline(time.Now().Add(1 * time.Second))
-			n, err := rx.Read(buff)
+			n, _, err := rx.ReadFromUDP(buff)
 
 			if err != nil {
 				if _, ok := err.(net.Error); ok {
@@ -177,8 +168,9 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 				WithField("ip", ip.String()).
 				Trace("received packet from client")
 
-			go func() {
-				err = vPort.Write(buff[:n])
+			go func(buff []byte) {
+				frame := ethernet.Frame(buff)
+				err = vPort.Write(&frame)
 				if err != nil {
 					select {
 					case errChan <- err:
@@ -189,9 +181,9 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 						return
 					}
 				}
-			}()
+			}(buff[:n])
 		}
-	}(ip, rx, tx, macBytes, vPort, make(chan error, 1))
+	}(ip, rx, tx.(*net.UDPConn), macBytes, vPort, make(chan error, 1))
 
 	<-done
 
