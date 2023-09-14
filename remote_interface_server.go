@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
 	"net"
 	"strconv"
 	"strings"
@@ -114,7 +113,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			}
 		}()
 
-		vPort.SetOnReceive(func(data *ethernet.Frame) {
+		vPort.SetOnReceive(func(data *EthernetFrame) {
 			_, err := tx.Write(*data)
 			if err != nil {
 				select {
@@ -153,7 +152,8 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 			n, _, err := rx.ReadFromUDP(buff)
 
 			if err != nil {
-				if _, ok := err.(net.Error); ok {
+				var netErr net.Error
+				if errors.As(err, &netErr) {
 					// we timed out, lets try again next loop
 					continue
 				}
@@ -169,7 +169,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 				Trace("received packet from client")
 
 			go func(buff []byte) {
-				frame := ethernet.Frame(buff)
+				frame := EthernetFrame(buff)
 				err = vPort.Write(&frame)
 				if err != nil {
 					select {

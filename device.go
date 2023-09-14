@@ -3,7 +3,6 @@ package exu
 import (
 	"errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
 	"math/rand"
 	"net"
 	"sync"
@@ -13,16 +12,16 @@ type EthernetDevice struct {
 	ports          []*VPort
 	name           string
 	portsMu        sync.RWMutex
-	onReceiveFn    func(srcPort *VPort, data *ethernet.Frame)
+	onReceiveFn    func(srcPort *VPort, data *EthernetFrame)
 	onConnectFn    func(port *VPort)
 	onDisconnectFn func(port *VPort)
 }
 
 type EthernetReceiver interface {
-	OnReceive(srcPort *VPort, src net.HardwareAddr, dst net.HardwareAddr, data ethernet.Frame)
+	OnReceive(srcPort *VPort, src net.HardwareAddr, dst net.HardwareAddr, data EthernetFrame)
 }
 
-func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *VPort, data *ethernet.Frame), onConnect func(port *VPort), onDisconnect func(port *VPort)) *EthernetDevice {
+func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *VPort, data *EthernetFrame), onConnect func(port *VPort), onDisconnect func(port *VPort)) *EthernetDevice {
 	dev := new(EthernetDevice)
 	*dev = EthernetDevice{
 		name:           name,
@@ -45,7 +44,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 
 		dev.ports[i] = NewVPort(mac)
 		func(i int) {
-			dev.ports[i].SetOnReceive(func(data *ethernet.Frame) {
+			dev.ports[i].SetOnReceive(func(data *EthernetFrame) {
 				dev.onReceiveFn(dev.ports[i], data)
 			})
 		}(i)
@@ -54,7 +53,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 	return dev
 }
 
-func (e *EthernetDevice) WriteFromPort(port *VPort, data *ethernet.Frame) error {
+func (e *EthernetDevice) WriteFromPort(port *VPort, data *EthernetFrame) error {
 	e.portsMu.RLock()
 	defer e.portsMu.RUnlock()
 

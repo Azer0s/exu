@@ -3,7 +3,6 @@ package exu
 import (
 	"encoding/binary"
 	log "github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"net"
 	"os/exec"
@@ -173,7 +172,7 @@ func (c *RemoteInterfaceClient) Run() {
 
 	log.WithField("ip", ipStr).Info("client started")
 
-	var frame ethernet.Frame
+	var frame EthernetFrame
 	for {
 		frame.Resize(1500)
 		n, err := c.ifce.Read(frame)

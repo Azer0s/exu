@@ -2,9 +2,10 @@ package test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"exu"
+	"fmt"
 	log "github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"regexp"
@@ -25,16 +26,16 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 	}
 
 	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01})
-	p1.SetOnReceive(func(data *ethernet.Frame) {
+	p1.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p1")
 	})
 
 	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02})
-	p2.SetOnReceive(func(data *ethernet.Frame) {
+	p2.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p2")
-		returnFrame := ethernet.Frame{
+		returnFrame := exu.EthernetFrame{
 			0x42, 0x69, 0x00, 0x00, 0x00, 0x01,
 			0x42, 0x69, 0x00, 0x00, 0x00, 0x02,
 			0x10, 0x01,
@@ -52,7 +53,7 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 	// second 6 bytes are the source mac address
 	// last 2 bytes are the ethernet type
 	// the rest is the payload
-	frame := ethernet.Frame{
+	frame := exu.EthernetFrame{
 		0x42, 0x69, 0x00, 0x00, 0x00, 0x02,
 		0x42, 0x69, 0x00, 0x00, 0x00, 0x01,
 		0x10, 0x01,
@@ -70,4 +71,34 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 	rgx := regexp.MustCompile(`learned new mac address`)
 	matches := rgx.FindAllStringIndex(buff.String(), -1)
 	assert.Equal(t, 4, len(matches))
+}
+
+func mustParseMAC(mac string) net.HardwareAddr {
+	parsed, err := net.ParseMAC(mac)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
+}
+
+func TestEthernetRouter(t *testing.T) {
+	sender := mustParseMAC("42:69:00:00:00:02")
+
+	frame, err := exu.NewEthernetFrame(
+		exu.BroadcastMAC,
+		sender,
+		exu.WithTagging(exu.TaggingUntagged),
+		exu.NewArpPayload(
+			exu.ArpHardwareTypeEthernet,
+			exu.ArpProtocolTypeIPv4,
+			exu.ArpOpcodeRequest,
+			sender,
+			net.IPv4(10, 0, 0, 2),
+			exu.ArpMacBroadcast,
+			net.IPv4(10, 0, 0, 1),
+		),
+	)
+
+	assert.NoError(t, err)
+	fmt.Printf("%s", hex.Dump(*frame))
 }

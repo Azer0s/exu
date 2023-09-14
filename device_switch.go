@@ -2,7 +2,6 @@ package exu
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/songgao/packets/ethernet"
 	"sync"
 )
 
@@ -53,7 +52,7 @@ func (s *EthernetSwitch) SetPortMode(port *VPort, mode PortModeConfig) {
 	s.portMode[port] = mode
 }
 
-func (s *EthernetSwitch) flood(srcPort *VPort, data *ethernet.Frame) {
+func (s *EthernetSwitch) flood(srcPort *VPort, data *EthernetFrame) {
 	s.portsMu.RLock()
 	defer s.portsMu.RUnlock()
 
@@ -64,7 +63,7 @@ func (s *EthernetSwitch) flood(srcPort *VPort, data *ethernet.Frame) {
 	}
 }
 
-func (s *EthernetSwitch) onReceive(srcPort *VPort, data *ethernet.Frame) {
+func (s *EthernetSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
 	// TODO: handle vlan
 	// Lookup tag of the incoming frame, if it is not the same as the dst port, drop the frame
 	// If the tag is the same, forward the frame to the dst port
