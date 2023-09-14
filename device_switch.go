@@ -17,6 +17,10 @@ type PortModeConfig struct {
 	Vlan uint16
 }
 
+var PortModeTrunk = PortModeConfig{
+	Mode: Trunk,
+}
+
 type EthernetSwitch struct {
 	*EthernetDevice
 	macAddressMap   map[string]*VPort
@@ -69,6 +73,8 @@ func (s *EthernetSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
 	// If the tag is the same, forward the frame to the dst port
 	// If we don't have the mac address in the mac address table, flood the frame to all trunk
 	// ports and all access ports in the same vlan
+
+	// TODO: handle MAC broadcast
 
 	srcString := data.Source().String()
 	dstString := data.Destination().String()
