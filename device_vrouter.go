@@ -1,20 +1,20 @@
 package exu
 
 import (
+	"errors"
 	"net"
 )
 
 type Route struct {
 	Network   net.IPNet
-	Netmask   net.IPMask
-	Gateway   net.IP
+	Via       net.IP
 	Interface *VPort
 }
 
 type EthernetRouter struct {
 	*EthernetDevice
 	routingTable []Route
-	portIPs      map[*VPort]net.IP
+	portIPs      map[*VPort]net.IPNet
 }
 
 func NewEthernetRouter(name string, numberOfPorts int) *EthernetRouter {
@@ -25,8 +25,18 @@ func NewEthernetRouter(name string, numberOfPorts int) *EthernetRouter {
 	return ethernetRouter
 }
 
-func (r *EthernetRouter) SetPortIP(port *VPort, ip net.IP) {
+func (r *EthernetRouter) SetPortIPNet(port *VPort, ipNet net.IPNet) {
+	r.portIPs[port] = ipNet
 
+}
+
+func (r *EthernetRouter) AddRoute(route Route) error {
+	// either the via or the interface must be set
+	if route.Via == nil && route.Interface == nil {
+		return errors.New("either the via or the interface must be set")
+	}
+
+	return nil
 }
 
 func (r *EthernetRouter) onReceive(srcPort *VPort, data *EthernetFrame) {

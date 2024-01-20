@@ -113,6 +113,30 @@ func (e *EthernetDevice) ConnectToFirstAvailablePort(target *VPort) error {
 	return errors.New("no available ports")
 }
 
+func (e *EthernetDevice) ConnectPorts(portOnMachine, target *VPort) error {
+	e.portsMu.Lock()
+	defer e.portsMu.Unlock()
+
+	index := -1
+	for i, port := range e.ports {
+		if port == portOnMachine {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		return errors.New("port not found on machine")
+	}
+
+	if e.ports[index].connectedTo != nil {
+		return errors.New("port already connected")
+	}
+
+	e.connectPorts(index, target)
+	return nil
+}
+
 func (e *EthernetDevice) DisconnectPort(target *VPort) {
 	log.WithField("name", e.name).
 		WithField("port", target.mac.String()).
