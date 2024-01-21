@@ -46,3 +46,24 @@ func TestRemoteV_Port2(t *testing.T) {
 
 	select {}
 }
+
+func TestRemoteV_Port3(t *testing.T) {
+	// this is an icmp test of the VRouter
+	log.SetLevel(log.InfoLevel)
+
+	r1 := exu.NewEthernetRouter("r1", 10)
+	p1 := r1.GetFirstFreePort()
+	r1.SetPortIPNet(p1, net.IPNet{
+		IP:   net.IPv4(10, 0, 0, 1),
+		Mask: net.IPv4Mask(255, 255, 255, 0),
+	})
+
+	_, _ = exu.NewRemoteVport(6554, net.ParseIP("10.0.0.2"), func(port *exu.VPort) {
+		_ = r1.ConnectPorts(p1, port)
+	}, func(p *exu.VPort) {
+		log.Info("remote disconnected")
+		r1.DisconnectPort(p1)
+	})
+
+	select {}
+}
