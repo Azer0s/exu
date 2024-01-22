@@ -1,6 +1,9 @@
 package exu
 
-import "net"
+import (
+	"errors"
+	"net"
+)
 
 var ArpMacBroadcast = net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
@@ -63,6 +66,22 @@ func (a *ArpPayload) MarshalBinary() ([]byte, error) {
 
 func (a *ArpPayload) EtherType() EtherType {
 	return EtherTypeARP
+}
+
+func (a *ArpPayload) FromBytes(data []byte) error {
+	if len(data) < 28 {
+		return errors.New("arp payload must be at least 28 bytes")
+	}
+
+	a.HardwareType = ArpHardwareType(uint16(data[0])<<8 | uint16(data[1]))
+	a.ProtocolType = ArpProtocolType(uint16(data[2])<<8 | uint16(data[3]))
+	a.Opcode = ArpOpcode(uint16(data[6])<<8 | uint16(data[7]))
+	a.SenderMac = data[8:14]
+	a.SenderIP = data[14:18]
+	a.TargetMac = data[18:24]
+	a.TargetIP = data[24:28]
+
+	return nil
 }
 
 func NewArpPayload(hardwareType ArpHardwareType, protocolType ArpProtocolType, opcode ArpOpcode, senderMac net.HardwareAddr, senderIP net.IP, targetMac net.HardwareAddr, targetIP net.IP) *ArpPayload {

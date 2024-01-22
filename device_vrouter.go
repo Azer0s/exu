@@ -54,54 +54,92 @@ func (r *EthernetRouter) AddRoute(route Route) error {
 }
 
 func (r *EthernetRouter) onReceive(srcPort *VPort, data *EthernetFrame) {
-	// right now we can only route IPv4 packets
-	if data.EtherType() != EtherTypeIPv4 {
+	// right now we can only route IPv4 and ARP packets
+	if !data.EtherType().Equal(EtherTypeIPv4) && !data.EtherType().Equal(EtherTypeARP) {
 		return
 	}
 
+	if data.EtherType() == EtherTypeARP {
+		// get the ARP payload
+		arpPayload := &ArpPayload{}
+		err := arpPayload.FromBytes(data.Payload())
+		if err != nil {
+			return
+		}
+
+		// if the ARP packet is for one of our ports, reply with our MAC address
+		if r.portIPs[srcPort].IP.Equal(arpPayload.TargetIP) {
+			// create the ARP payload
+			arpPayload := &ArpPayload{
+				HardwareType: arpPayload.HardwareType,
+				ProtocolType: arpPayload.ProtocolType,
+				Opcode:       ArpOpcodeReply,
+				SenderIP:     arpPayload.TargetIP,
+				TargetIP:     arpPayload.SenderIP,
+				SenderMac:    srcPort.mac,
+				TargetMac:    arpPayload.SenderMac,
+			}
+
+			// create the ethernet frame
+			ethernetFrame, err := NewEthernetFrame(data.Source(), data.Destination(), WithTagging(TaggingUntagged), arpPayload)
+			if err != nil {
+				return
+			}
+
+			// write the frame to the source port
+			_ = srcPort.Write(ethernetFrame)
+			return
+		}
+	}
+
 	// get the destination IP
-	ipv4Payload := &IPv4Payload{}
-	err := ipv4Payload.FromBytes(data.Payload())
+	ipv4Packet := &IPv4Packet{}
+	err := ipv4Packet.UnmarshalBinary(data.Payload())
 	if err != nil {
 		return
 	}
 
 	// check if the packet is ICMP
 	// if so, it could be for us
-	if ipv4Payload.Protocol == IPv4ProtocolICMP {
+	if ipv4Packet.Header.Protocol == IPv4ProtocolICMP {
 		icmpPayload := &ICMPPayload{}
-		err = icmpPayload.FromBytes(ipv4Payload.Data)
+		err = icmpPayload.FromBytes(ipv4Packet.Payload)
 		if err != nil {
 			return
 		}
 
 		// if the packet is for one of our ports, reply with an ICMP echo reply
-		if r.portIPs[srcPort].IP.Equal(ipv4Payload.DestinationIP) {
+		if r.portIPs[srcPort].IP.Equal(ipv4Packet.Header.DestinationIP) {
 			// create the ICMP payload
-			icmpPayload := &ICMPPayload{
+			icmpResponsePayload := &ICMPPayload{
 				Type: ICMPTypeEchoReply,
 				Code: 0,
 				Data: icmpPayload.Data,
 			}
+			icmpResponsePayload.Checksum = icmpResponsePayload.CalculateChecksum()
 
-			// create the IPv4 payload
-			ipv4Payload := &IPv4Payload{
-				Version:        4,
-				IHL:            5,
-				DSCP:           0,
-				ECN:            0,
-				TotalLength:    uint16(20 + 8 + len(icmpPayload.Data)),
-				Identification: 0,
-				Flags:          0,
-				FragmentOffset: 0,
-				TTL:            64,
-				Protocol:       IPv4ProtocolICMP,
-				SourceIP:       r.portIPs[srcPort].IP,
-				DestinationIP:  ipv4Payload.SourceIP,
+			icmpResponsePayloadBytes, _ := icmpResponsePayload.MarshalBinary()
+
+			ipv4ResponsePacket := &IPv4Packet{
+				Header: IPv4Header{
+					Version:        4,
+					IHL:            5,
+					TOS:            0,
+					TotalLength:    uint16(20 + len(icmpResponsePayloadBytes)),
+					ID:             0,
+					FlagsFragment:  0,
+					TTL:            64,
+					Protocol:       IPv4ProtocolICMP,
+					HeaderChecksum: 0,
+					SourceIP:       r.portIPs[srcPort].IP,
+					DestinationIP:  ipv4Packet.Header.SourceIP,
+				},
+				Payload: icmpResponsePayloadBytes,
 			}
+			ipv4ResponsePacket.Header.HeaderChecksum = ipv4ResponsePacket.Header.CalculateChecksum()
 
 			// create the ethernet frame
-			ethernetFrame, err := NewEthernetFrame(data.Source(), data.Destination(), WithTagging(TaggingUntagged), ipv4Payload)
+			ethernetFrame, err := NewEthernetFrame(data.Source(), data.Destination(), WithTagging(TaggingUntagged), ipv4ResponsePacket)
 			if err != nil {
 				return
 			}

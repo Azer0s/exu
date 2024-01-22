@@ -1,6 +1,7 @@
 package exu
 
 import (
+	"errors"
 	"net"
 )
 
@@ -90,6 +91,15 @@ func (f *EthernetFrame) resize(length int) {
 	} else {
 		*f = (*f)[:length]
 	}
+}
+
+func (f *EthernetFrame) FromBytes(data []byte) error {
+	if len(data) < 14 {
+		return errors.New("ethernet frame must be at least 14 bytes")
+	}
+
+	*f = data
+	return nil
 }
 
 // NewEthernetFrame prepares *f to be used, by filling in dst/src address, setting up

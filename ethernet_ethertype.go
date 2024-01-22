@@ -5,6 +5,10 @@ package exu
 // immutable values.
 type EtherType [2]byte
 
+func (e EtherType) Equal(other EtherType) bool {
+	return e[0] == other[0] && e[1] == other[1]
+}
+
 // Common EtherType values
 var (
 	EtherTypeIPv4                = EtherType{0x08, 0x00}

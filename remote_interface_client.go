@@ -29,18 +29,31 @@ func NewRemoteInterfaceClient(host net.UDPAddr) RemoteInterfaceClient {
 		panic(err)
 	}
 
-	highestTap := 0
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "tap") {
-			config.Name = strings.Split(line, ":")[0]
-			tapNum, err := strconv.Atoi(config.Name[3:])
-			if err != nil {
-				continue
-			}
+	highestTap := -1
+	if len(out) == 0 {
+		// no tap interfaces, create tap0
+		command := exec.Command("ip", "tuntap", "add", "tap0", "mode", "tap")
+		err = command.Run()
+		if err != nil {
+			panic(err)
+		}
 
-			if tapNum >= highestTap {
-				highestTap = tapNum + 1
+		highestTap = 0
+	}
+
+	if highestTap == -1 {
+		lines := strings.Split(string(out), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "tap") {
+				config.Name = strings.Split(line, ":")[0]
+				tapNum, err := strconv.Atoi(config.Name[3:])
+				if err != nil {
+					continue
+				}
+
+				if tapNum >= highestTap {
+					highestTap = tapNum + 1
+				}
 			}
 		}
 	}

@@ -31,3 +31,21 @@ func (i *ICMPPayload) FromBytes(data []byte) error {
 	i.Data = data[4:]
 	return nil
 }
+
+func (i *ICMPPayload) CalculateChecksum() uint16 {
+	data := i.Data
+	if len(data)%2 != 0 {
+		data = append(data, 0)
+	}
+
+	var sum uint32
+	for i := 0; i < len(data); i += 2 {
+		sum += uint32(data[i])<<8 | uint32(data[i+1])
+	}
+
+	for sum > 0xffff {
+		sum = (sum >> 16) + (sum & 0xffff)
+	}
+
+	return uint16(^sum)
+}
