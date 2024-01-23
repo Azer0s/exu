@@ -26,10 +26,6 @@ func NewEthernetRouter(name string, numberOfPorts int) *VRouter {
 	return ethernetRouter
 }
 
-func (r *VRouter) SetPortIPNet(port *VPort, ipNet net.IPNet) {
-	r.portIPs[port] = ipNet
-}
-
 func (r *VRouter) AddRoute(route Route) error {
 	// if the network is 0.0.0.0/0, set it as the default route
 	if route.Network.IP.Equal(net.IPv4zero) && bytes.Equal(route.Network.Mask, net.IPv4Mask(0, 0, 0, 0)) {

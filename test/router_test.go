@@ -2,11 +2,15 @@ package test
 
 import (
 	"exu"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
 )
 
 func TestSimpleRouting(t *testing.T) {
+	log.SetLevel(log.TraceLevel)
+
 	// v1 <-> (0) r1 (1) <-> (0) r2 (1) <-> v2
 	// v1: 10.0.0.0/24
 	// v2: 172.0.0.0/24
@@ -145,4 +149,7 @@ func TestSimpleRouting(t *testing.T) {
 	}
 	ipv4Packet.Header.TotalLength = uint16(20 + len(ipv4Packet.Payload))
 	ipv4Packet.Header.HeaderChecksum = ipv4Packet.Header.CalculateChecksum()
+
+	dstMac, _ := v1.ArpResolve(net.IPv4(172, 0, 0, 2))
+	assert.Equal(t, v2Port.Mac(), dstMac)
 }

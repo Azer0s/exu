@@ -89,7 +89,7 @@ func NewRemoteVport(rxPort int, ip net.IP, onConnect, onDisconnect func(port *VP
 		WithField("ip", ip).
 		Debug("sent ip address to client")
 
-	vPort := NewVPort(macBytes)
+	vPort := NewVPort(macBytes, remoteAddr.String())
 	done := make(chan bool)
 
 	go func(ip net.IP, rx, tx *net.UDPConn, mac net.HardwareAddr, vPort *VPort, errChan chan error) {

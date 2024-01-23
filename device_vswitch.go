@@ -1,6 +1,7 @@
 package exu
 
 import (
+	"bytes"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
@@ -23,18 +24,14 @@ var PortModeTrunk = PortModeConfig{
 
 type VSwitch struct {
 	*EthernetDevice
-	macAddressMap   map[string]*VPort
-	macAddressMapMu sync.RWMutex
-	portMode        map[*VPort]PortModeConfig
-	portModeMu      sync.RWMutex
+	portMode   map[*VPort]PortModeConfig
+	portModeMu sync.RWMutex
 }
 
 func NewVSwitch(name string, numberOfPorts int) *VSwitch {
 	vSwitch := &VSwitch{
-		macAddressMap:   make(map[string]*VPort),
-		macAddressMapMu: sync.RWMutex{},
-		portMode:        make(map[*VPort]PortModeConfig),
-		portModeMu:      sync.RWMutex{},
+		portMode:   make(map[*VPort]PortModeConfig),
+		portModeMu: sync.RWMutex{},
 	}
 
 	vSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, vSwitch.onReceive, func(*VPort) {}, vSwitch.onDisconnect)
@@ -74,38 +71,19 @@ func (s *VSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
 	// If we don't have the mac address in the mac address table, flood the frame to all trunk
 	// ports and all access ports in the same vlan
 
-	// TODO: handle MAC broadcast
+	// If the dst MAC is a broadcast MAC, flood the frame to all trunk ports and all access ports
+	if bytes.Equal(data.Destination(), []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}) {
+		s.flood(srcPort, data)
+		return
+	}
 
 	srcString := data.Source().String()
 	dstString := data.Destination().String()
 
 	log.WithField("src", srcString).
 		WithField("dst", dstString).
-		WithField("name", s.name).
+		WithField("device", s.name).
 		Trace("received frame")
-
-	func() {
-		s.macAddressMapMu.Lock()
-		defer s.macAddressMapMu.Unlock()
-
-		if _, ok := s.macAddressMap[srcString]; !ok {
-			s.macAddressMap[srcString] = srcPort
-
-			idx := 0
-			for _, p := range s.macAddressMap {
-				if p == s.macAddressMap[srcString] {
-					break
-				}
-
-				idx++
-			}
-
-			log.WithField("mac", srcString).
-				WithField("port", idx).
-				WithField("name", s.name).
-				Info("learned new mac address")
-		}
-	}()
 
 	s.macAddressMapMu.RLock()
 	defer s.macAddressMapMu.RUnlock()
@@ -122,17 +100,8 @@ func (s *VSwitch) onDisconnect(port *VPort) {
 	s.portModeMu.Lock()
 	defer s.portModeMu.Unlock()
 
-	s.macAddressMapMu.Lock()
-	defer s.macAddressMapMu.Unlock()
-
 	s.portMode[port] = PortModeConfig{
 		Mode: Access,
 		Vlan: 1,
-	}
-
-	for mac, p := range s.macAddressMap {
-		if p == port {
-			delete(s.macAddressMap, mac)
-		}
 	}
 }

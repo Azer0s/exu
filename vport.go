@@ -11,6 +11,7 @@ type VPort struct {
 	mac         net.HardwareAddr
 	connectedTo *VPort
 	onReceive   func(data *EthernetFrame)
+	portCname   string
 }
 
 func (v *VPort) SetOnReceive(onReceive func(data *EthernetFrame)) {
@@ -32,8 +33,9 @@ func (v *VPort) Mac() net.HardwareAddr {
 	return v.mac
 }
 
-func NewVPort(mac net.HardwareAddr) *VPort {
+func NewVPort(mac net.HardwareAddr, cname string) *VPort {
 	return &VPort{
-		mac: mac,
+		mac:       mac,
+		portCname: cname,
 	}
 }

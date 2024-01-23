@@ -23,13 +23,13 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 		return
 	}
 
-	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01})
+	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01}, "p1")
 	p1.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p1")
 	})
 
-	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02})
+	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02}, "p2")
 	p2.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p2")
@@ -89,13 +89,13 @@ func TestEthernetRouter(t *testing.T) {
 
 	// TODO: create a static route
 
-	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01})
+	p1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01}, "p1")
 	p1.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p1")
 	})
 
-	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02})
+	p2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02}, "p2")
 	p2.SetOnReceive(func(data *exu.EthernetFrame) {
 		log.WithField("data", string(data.Payload())).
 			Info("received data on p2")
