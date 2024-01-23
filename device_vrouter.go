@@ -7,38 +7,30 @@ import (
 )
 
 type Route struct {
-	Network   net.IPNet
-	Via       net.IP
-	Interface *VPort
+	Network net.IPNet
+	Via     net.IP
 }
 
-type EthernetRouter struct {
-	*EthernetDevice
+type VRouter struct {
+	*IpDevice
 	routingTable []Route
-	portIPs      map[*VPort]net.IPNet
 	defaultRoute *Route
 }
 
-func NewEthernetRouter(name string, numberOfPorts int) *EthernetRouter {
-	ethernetRouter := &EthernetRouter{
-		portIPs: make(map[*VPort]net.IPNet),
+func NewEthernetRouter(name string, numberOfPorts int) *VRouter {
+	ethernetRouter := &VRouter{
+		routingTable: make([]Route, 0),
 	}
-
-	ethernetRouter.EthernetDevice = NewEthernetDevice(name, numberOfPorts, ethernetRouter.onReceive, func(*VPort) {}, ethernetRouter.onDisconnect)
+	ethernetRouter.IpDevice = NewIpDevice(name, numberOfPorts, ethernetRouter.onReceive, func(*VPort) {}, ethernetRouter.onDisconnect)
 
 	return ethernetRouter
 }
 
-func (r *EthernetRouter) SetPortIPNet(port *VPort, ipNet net.IPNet) {
+func (r *VRouter) SetPortIPNet(port *VPort, ipNet net.IPNet) {
 	r.portIPs[port] = ipNet
 }
 
-func (r *EthernetRouter) AddRoute(route Route) error {
-	// either the via or the interface must be set
-	if route.Via == nil && route.Interface == nil {
-		return errors.New("either the via or the interface must be set")
-	}
-
+func (r *VRouter) AddRoute(route Route) error {
 	// if the network is 0.0.0.0/0, set it as the default route
 	if route.Network.IP.Equal(net.IPv4zero) && bytes.Equal(route.Network.Mask, net.IPv4Mask(0, 0, 0, 0)) {
 		if r.defaultRoute != nil {
@@ -53,43 +45,10 @@ func (r *EthernetRouter) AddRoute(route Route) error {
 	return nil
 }
 
-func (r *EthernetRouter) onReceive(srcPort *VPort, data *EthernetFrame) {
+func (r *VRouter) onReceive(_ *VPort, data *EthernetFrame) {
 	// right now we can only route IPv4 and ARP packets
-	if !data.EtherType().Equal(EtherTypeIPv4) && !data.EtherType().Equal(EtherTypeARP) {
+	if !data.EtherType().Equal(EtherTypeIPv4) {
 		return
-	}
-
-	if data.EtherType() == EtherTypeARP {
-		// get the ARP payload
-		arpPayload := &ArpPayload{}
-		err := arpPayload.FromBytes(data.Payload())
-		if err != nil {
-			return
-		}
-
-		// if the ARP packet is for one of our ports, reply with our MAC address
-		if r.portIPs[srcPort].IP.Equal(arpPayload.TargetIP) {
-			// create the ARP payload
-			arpPayload := &ArpPayload{
-				HardwareType: arpPayload.HardwareType,
-				ProtocolType: arpPayload.ProtocolType,
-				Opcode:       ArpOpcodeReply,
-				SenderIP:     arpPayload.TargetIP,
-				TargetIP:     arpPayload.SenderIP,
-				SenderMac:    srcPort.mac,
-				TargetMac:    arpPayload.SenderMac,
-			}
-
-			// create the ethernet frame
-			ethernetFrame, err := NewEthernetFrame(data.Source(), data.Destination(), WithTagging(TaggingUntagged), arpPayload)
-			if err != nil {
-				return
-			}
-
-			// write the frame to the source port
-			_ = srcPort.Write(ethernetFrame)
-			return
-		}
 	}
 
 	// get the destination IP
@@ -99,59 +58,54 @@ func (r *EthernetRouter) onReceive(srcPort *VPort, data *EthernetFrame) {
 		return
 	}
 
-	// check if the packet is ICMP
-	// if so, it could be for us
-	if ipv4Packet.Header.Protocol == IPv4ProtocolICMP {
-		icmpPayload := &ICMPPayload{}
-		err = icmpPayload.FromBytes(ipv4Packet.Payload)
-		if err != nil {
-			return
-		}
-
-		// if the packet is for one of our ports, reply with an ICMP echo reply
-		if r.portIPs[srcPort].IP.Equal(ipv4Packet.Header.DestinationIP) {
-			// create the ICMP payload
-			icmpResponsePayload := &ICMPPayload{
-				Type: ICMPTypeEchoReply,
-				Code: 0,
-				Data: icmpPayload.Data,
-			}
-			icmpResponsePayload.Checksum = icmpResponsePayload.CalculateChecksum()
-
-			icmpResponsePayloadBytes, _ := icmpResponsePayload.MarshalBinary()
-
-			ipv4ResponsePacket := &IPv4Packet{
-				Header: IPv4Header{
-					Version:        4,
-					IHL:            5,
-					TOS:            0,
-					TotalLength:    uint16(20 + len(icmpResponsePayloadBytes)),
-					ID:             0,
-					FlagsFragment:  0,
-					TTL:            64,
-					Protocol:       IPv4ProtocolICMP,
-					HeaderChecksum: 0,
-					SourceIP:       r.portIPs[srcPort].IP,
-					DestinationIP:  ipv4Packet.Header.SourceIP,
-				},
-				Payload: icmpResponsePayloadBytes,
-			}
-			ipv4ResponsePacket.Header.HeaderChecksum = ipv4ResponsePacket.Header.CalculateChecksum()
-
-			// create the ethernet frame
-			ethernetFrame, err := NewEthernetFrame(data.Source(), data.Destination(), WithTagging(TaggingUntagged), ipv4ResponsePacket)
-			if err != nil {
-				return
-			}
-
-			// write the frame to the source port
-			_ = srcPort.Write(ethernetFrame)
-			return
+	bestRoute := r.defaultRoute
+	for _, route := range r.routingTable {
+		// find a more fitting route
+		if route.Network.Contains(ipv4Packet.Header.DestinationIP) {
+			bestRoute = &route
+			break
 		}
 	}
 
+	// find an interface that is in the network of the next hop of the best route
+	var nextHopPort *VPort
+	for port, ipNet := range r.portIPs {
+		networkIP := net.IPNet{
+			IP:   ipNet.IP.Mask(ipNet.Mask),
+			Mask: ipNet.Mask,
+		}
+
+		if networkIP.Contains(bestRoute.Via) {
+			nextHopPort = port
+			break
+		}
+	}
+
+	// if we don't have a next hop port, we can't route the packet
+	if nextHopPort == nil {
+		return
+	}
+
+	// decrement the TTL
+	ipv4Packet.Header.TTL--
+
+	// if the TTL is 0, drop the packet
+	if ipv4Packet.Header.TTL == 0 {
+		return
+	}
+
+	// recalculate the checksum
+	ipv4Packet.Header.HeaderChecksum = 0
+	ipv4Packet.Header.HeaderChecksum = ipv4Packet.Header.CalculateChecksum()
+
+	// create the ethernet frame
+	ethernetFrame, _ := NewEthernetFrame(nextHopPort.mac, data.Source(), TagData{}, ipv4Packet)
+	err = nextHopPort.Write(ethernetFrame)
+	if err != nil {
+		return
+	}
 }
 
-func (r *EthernetRouter) onDisconnect(port *VPort) {
+func (r *VRouter) onDisconnect(*VPort) {
 
 }

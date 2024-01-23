@@ -28,6 +28,10 @@ func (v *VPort) Write(data *EthernetFrame) error {
 	return nil
 }
 
+func (v *VPort) Mac() net.HardwareAddr {
+	return v.mac
+}
+
 func NewVPort(mac net.HardwareAddr) *VPort {
 	return &VPort{
 		mac: mac,

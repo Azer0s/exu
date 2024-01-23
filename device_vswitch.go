@@ -21,7 +21,7 @@ var PortModeTrunk = PortModeConfig{
 	Mode: Trunk,
 }
 
-type EthernetSwitch struct {
+type VSwitch struct {
 	*EthernetDevice
 	macAddressMap   map[string]*VPort
 	macAddressMapMu sync.RWMutex
@@ -29,34 +29,34 @@ type EthernetSwitch struct {
 	portModeMu      sync.RWMutex
 }
 
-func NewEthernetSwitch(name string, numberOfPorts int) *EthernetSwitch {
-	ethernetSwitch := &EthernetSwitch{
+func NewVSwitch(name string, numberOfPorts int) *VSwitch {
+	vSwitch := &VSwitch{
 		macAddressMap:   make(map[string]*VPort),
 		macAddressMapMu: sync.RWMutex{},
 		portMode:        make(map[*VPort]PortModeConfig),
 		portModeMu:      sync.RWMutex{},
 	}
 
-	ethernetSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, ethernetSwitch.onReceive, func(*VPort) {}, ethernetSwitch.onDisconnect)
+	vSwitch.EthernetDevice = NewEthernetDevice(name, numberOfPorts, vSwitch.onReceive, func(*VPort) {}, vSwitch.onDisconnect)
 
 	for i := 0; i < numberOfPorts; i++ {
-		ethernetSwitch.portMode[ethernetSwitch.ports[i]] = PortModeConfig{
+		vSwitch.portMode[vSwitch.ports[i]] = PortModeConfig{
 			Mode: Access,
 			Vlan: 1,
 		}
 	}
 
-	return ethernetSwitch
+	return vSwitch
 }
 
-func (s *EthernetSwitch) SetPortMode(port *VPort, mode PortModeConfig) {
+func (s *VSwitch) SetPortMode(port *VPort, mode PortModeConfig) {
 	s.portModeMu.Lock()
 	defer s.portModeMu.Unlock()
 
 	s.portMode[port] = mode
 }
 
-func (s *EthernetSwitch) flood(srcPort *VPort, data *EthernetFrame) {
+func (s *VSwitch) flood(srcPort *VPort, data *EthernetFrame) {
 	s.portsMu.RLock()
 	defer s.portsMu.RUnlock()
 
@@ -67,7 +67,7 @@ func (s *EthernetSwitch) flood(srcPort *VPort, data *EthernetFrame) {
 	}
 }
 
-func (s *EthernetSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
+func (s *VSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
 	// TODO: handle vlan
 	// Lookup tag of the incoming frame, if it is not the same as the dst port, drop the frame
 	// If the tag is the same, forward the frame to the dst port
@@ -118,7 +118,7 @@ func (s *EthernetSwitch) onReceive(srcPort *VPort, data *EthernetFrame) {
 	s.flood(srcPort, data)
 }
 
-func (s *EthernetSwitch) onDisconnect(port *VPort) {
+func (s *VSwitch) onDisconnect(port *VPort) {
 	s.portModeMu.Lock()
 	defer s.portModeMu.Unlock()
 

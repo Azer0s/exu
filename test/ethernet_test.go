@@ -15,8 +15,8 @@ func TestEthernetSwitchLearnMac(t *testing.T) {
 	buff := bytes.NewBuffer(make([]byte, 4096))
 	log.SetOutput(buff)
 
-	sw1 := exu.NewEthernetSwitch("sw1", 10)
-	sw2 := exu.NewEthernetSwitch("sw2", 10)
+	sw1 := exu.NewVSwitch("sw1", 10)
+	sw2 := exu.NewVSwitch("sw2", 10)
 
 	err := sw1.ConnectToFirstAvailablePort(sw2.GetFirstFreePort())
 	if err != nil {
@@ -77,7 +77,7 @@ func TestEthernetRouter(t *testing.T) {
 	log.SetOutput(buff)
 
 	r1 := exu.NewEthernetRouter("r1", 10)
-	sw1 := exu.NewEthernetSwitch("sw1", 10)
+	sw1 := exu.NewVSwitch("sw1", 10)
 
 	sw1Port := sw1.GetFirstFreePort()
 	err := r1.ConnectToFirstAvailablePort(sw1Port)

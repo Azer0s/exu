@@ -22,19 +22,33 @@ func TestSimpleRouting(t *testing.T) {
 	r1 := exu.NewEthernetRouter("r1", 2)
 	r2 := exu.NewEthernetRouter("r2", 2)
 
-	// create two ports
-	v1 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x01})
-	v2 := exu.NewVPort(net.HardwareAddr{0x42, 0x69, 0x00, 0x00, 0x00, 0x02})
+	// create two virtual devices
+	v1Chan := make(chan *exu.EthernetFrame)
+	v1 := exu.NewIpDevice("v1", 1, func(srcPort *exu.VPort, data *exu.EthernetFrame) {
+		v1Chan <- data
+	}, func(port *exu.VPort) {}, func(port *exu.VPort) {})
+	v1Port := v1.GetFirstFreePort()
+	v1.SetPortIPNet(v1Port, net.IPNet{
+		IP:   net.IPv4(10, 0, 0, 2),
+		Mask: net.IPv4Mask(255, 255, 255, 0),
+	})
+
+	v2 := exu.NewIpDevice("v2", 1, func(srcPort *exu.VPort, data *exu.EthernetFrame) {}, func(port *exu.VPort) {}, func(port *exu.VPort) {})
+	v2Port := v2.GetFirstFreePort()
+	v2.SetPortIPNet(v2Port, net.IPNet{
+		IP:   net.IPv4(172, 0, 0, 2),
+		Mask: net.IPv4Mask(255, 255, 255, 0),
+	})
 
 	// connect the ports to the routers
 	v1R1Port := r1.GetFirstFreePort()
-	err := r1.ConnectPorts(v1R1Port, v1)
+	err := r1.ConnectPorts(v1R1Port, v1Port)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	v2R2Port := r2.GetFirstFreePort()
-	err = r2.ConnectPorts(v2R2Port, v2)
+	err = r2.ConnectPorts(v2R2Port, v2Port)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +95,6 @@ func TestSimpleRouting(t *testing.T) {
 			IP:   net.IPv4(10, 0, 0, 0),
 			Mask: net.IPv4Mask(255, 255, 255, 0),
 		},
-		Interface: v1R1Port,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -104,9 +117,32 @@ func TestSimpleRouting(t *testing.T) {
 			IP:   net.IPv4(172, 0, 0, 0),
 			Mask: net.IPv4Mask(255, 255, 255, 0),
 		},
-		Interface: v2R2Port,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	icmpPayload := &exu.ICMPPayload{
+		Type: exu.ICMPTypeEcho,
+		Code: 0,
+		Data: []byte("hello"),
+	}
+	icmpPayload.Checksum = icmpPayload.CalculateChecksum()
+	icmpPayloadBytes, _ := icmpPayload.MarshalBinary()
+
+	ipv4Packet := &exu.IPv4Packet{
+		Header: exu.IPv4Header{
+			Version:       4,
+			IHL:           5,
+			TOS:           0,
+			ID:            0,
+			TTL:           64,
+			Protocol:      exu.IPv4ProtocolICMP,
+			SourceIP:      net.IPv4(10, 0, 0, 2),
+			DestinationIP: net.IPv4(172, 0, 0, 2),
+		},
+		Payload: icmpPayloadBytes,
+	}
+	ipv4Packet.Header.TotalLength = uint16(20 + len(ipv4Packet.Payload))
+	ipv4Packet.Header.HeaderChecksum = ipv4Packet.Header.CalculateChecksum()
 }
