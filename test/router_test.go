@@ -23,8 +23,8 @@ func TestSimpleRouting(t *testing.T) {
 	//  - 172.0.0.0/24 -> port 1
 
 	// create a new router
-	r1 := exu.NewEthernetRouter("r1", 2)
-	r2 := exu.NewEthernetRouter("r2", 2)
+	r1 := exu.NewVRouter("r1", 2)
+	r2 := exu.NewVRouter("r2", 2)
 
 	// create two virtual devices
 	v1Chan := make(chan *exu.EthernetFrame)

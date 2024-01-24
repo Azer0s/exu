@@ -17,7 +17,7 @@ type VRouter struct {
 	defaultRoute *Route
 }
 
-func NewEthernetRouter(name string, numberOfPorts int) *VRouter {
+func NewVRouter(name string, numberOfPorts int) *VRouter {
 	ethernetRouter := &VRouter{
 		routingTable: make([]Route, 0),
 	}

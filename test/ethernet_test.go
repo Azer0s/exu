@@ -76,7 +76,7 @@ func TestEthernetRouter(t *testing.T) {
 	buff := bytes.NewBuffer(make([]byte, 4096))
 	log.SetOutput(buff)
 
-	r1 := exu.NewEthernetRouter("r1", 10)
+	r1 := exu.NewVRouter("r1", 10)
 	sw1 := exu.NewVSwitch("sw1", 10)
 
 	sw1Port := sw1.GetFirstFreePort()

@@ -51,7 +51,7 @@ func TestRemoteV_Port3(t *testing.T) {
 	// this is an icmp test of the VRouter
 	log.SetLevel(log.InfoLevel)
 
-	r1 := exu.NewEthernetRouter("r1", 10)
+	r1 := exu.NewVRouter("r1", 10)
 	p1 := r1.GetFirstFreePort()
 	r1.SetPortIPNet(p1, net.IPNet{
 		IP:   net.IPv4(10, 0, 0, 1),
