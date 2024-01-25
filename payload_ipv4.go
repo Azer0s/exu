@@ -139,15 +139,15 @@ func (header *IPv4Header) UnmarshalBinary(data []byte) error {
 	header.HeaderChecksum = binary.BigEndian.Uint16(data[10:12])
 
 	// Source IP Address
-	header.SourceIP = net.IP(data[12:16])
+	header.SourceIP = data[12:16]
 
 	// Destination IP Address
-	header.DestinationIP = net.IP(data[16:20])
+	header.DestinationIP = data[16:20]
 
 	return nil
 }
 
-// CalculateHeaderChecksum calculates the header checksum for an IPv4 header
+// CalculateChecksum calculates the header checksum for an IPv4 header
 func (header *IPv4Header) CalculateChecksum() uint16 {
 	// Save the current checksum value
 	oldChecksum := header.HeaderChecksum

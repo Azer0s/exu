@@ -18,6 +18,8 @@ type EthernetDevice struct {
 	macAddressMap   map[string]*VPort
 	macAddressMapMu sync.RWMutex
 
+	capabilities []Capability
+
 	onReceiveFn    func(srcPort *VPort, data *EthernetFrame)
 	onConnectFn    func(port *VPort)
 	onDisconnectFn func(port *VPort)
@@ -35,6 +37,7 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 		portsMu:         sync.RWMutex{},
 		macAddressMap:   make(map[string]*VPort),
 		macAddressMapMu: sync.RWMutex{},
+		capabilities:    make([]Capability, 0),
 		onReceiveFn:     onReceive,
 		onConnectFn:     onConnect,
 		onDisconnectFn:  onDisconnect,
@@ -70,7 +73,23 @@ func NewEthernetDevice(name string, numberOfPorts int, onReceive func(srcPort *V
 						Trace("learned new mac address")
 				}
 
+				// check all capabilities
+				for _, capability := range dev.capabilities {
+					if capability.Match(dev.ports[i], data) {
+						res := capability.HandleRequest(dev.ports[i], data)
+						switch res {
+						case CapabilityStatusDone:
+							goto done
+						case CapabilityStatusFail:
+							goto done
+						case CapabilityStatusPass:
+							continue
+						}
+					}
+				}
+
 				dev.onReceiveFn(dev.ports[i], data)
+			done:
 			})
 		}(i)
 	}

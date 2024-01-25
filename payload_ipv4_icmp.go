@@ -24,7 +24,7 @@ func (i *ICMPPayload) MarshalBinary() ([]byte, error) {
 	return res, nil
 }
 
-func (i *ICMPPayload) FromBytes(data []byte) error {
+func (i *ICMPPayload) UnmarshalBinary(data []byte) error {
 	i.Type = ICMPType(data[0])
 	i.Code = data[1]
 	i.Checksum = uint16(data[2])<<8 | uint16(data[3])

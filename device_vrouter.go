@@ -18,12 +18,15 @@ type VRouter struct {
 }
 
 func NewVRouter(name string, numberOfPorts int) *VRouter {
-	ethernetRouter := &VRouter{
+	vRouter := &VRouter{
 		routingTable: make([]Route, 0),
 	}
-	ethernetRouter.IpDevice = NewIpDevice(name, numberOfPorts, ethernetRouter.onReceive, func(*VPort) {}, ethernetRouter.onDisconnect)
+	vRouter.IpDevice = NewIpDevice(name, numberOfPorts, vRouter.onReceive, func(*VPort) {}, vRouter.onDisconnect)
+	vRouter.EthernetDevice.capabilities = append(vRouter.EthernetDevice.capabilities, CapabilityForwardArp{
+		IpDevice: vRouter.IpDevice,
+	})
 
-	return ethernetRouter
+	return vRouter
 }
 
 func (r *VRouter) AddRoute(route Route) error {

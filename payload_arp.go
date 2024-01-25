@@ -35,7 +35,7 @@ const (
 	ArpOpcodeReply   ArpOpcode = 2
 )
 
-type ArpPayload struct {
+type ArpPacket struct {
 	HardwareType ArpHardwareType
 	ProtocolType ArpProtocolType
 	Opcode       ArpOpcode
@@ -45,7 +45,7 @@ type ArpPayload struct {
 	TargetIP     net.IP
 }
 
-func (a *ArpPayload) MarshalBinary() ([]byte, error) {
+func (a *ArpPacket) MarshalBinary() ([]byte, error) {
 	senderIpBytes := a.SenderIP.To4()[0:4]
 	targetIpBytes := a.TargetIP.To4()[0:4]
 
@@ -64,11 +64,11 @@ func (a *ArpPayload) MarshalBinary() ([]byte, error) {
 	}, nil
 }
 
-func (a *ArpPayload) EtherType() EtherType {
+func (a *ArpPacket) EtherType() EtherType {
 	return EtherTypeARP
 }
 
-func (a *ArpPayload) FromBytes(data []byte) error {
+func (a *ArpPacket) FromBytes(data []byte) error {
 	if len(data) < 28 {
 		return errors.New("arp payload must be at least 28 bytes")
 	}
@@ -84,8 +84,8 @@ func (a *ArpPayload) FromBytes(data []byte) error {
 	return nil
 }
 
-func NewArpPayload(hardwareType ArpHardwareType, protocolType ArpProtocolType, opcode ArpOpcode, senderMac net.HardwareAddr, senderIP net.IP, targetMac net.HardwareAddr, targetIP net.IP) *ArpPayload {
-	return &ArpPayload{
+func NewArpPayload(hardwareType ArpHardwareType, protocolType ArpProtocolType, opcode ArpOpcode, senderMac net.HardwareAddr, senderIP net.IP, targetMac net.HardwareAddr, targetIP net.IP) *ArpPacket {
+	return &ArpPacket{
 		HardwareType: hardwareType,
 		ProtocolType: protocolType,
 		Opcode:       opcode,
